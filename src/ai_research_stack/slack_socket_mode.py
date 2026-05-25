@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import time
 from typing import Any
 
 import httpx
@@ -85,6 +86,22 @@ def run_socket_mode(app_token: str, repository: Repository) -> None:
             websocket.send(json.dumps(response))
 
 
+def run_socket_mode_forever(
+    run_once: Any,
+    sleep: Any = time.sleep,
+    max_attempts: int | None = None,
+) -> None:
+    attempts = 0
+    while max_attempts is None or attempts < max_attempts:
+        attempts += 1
+        try:
+            run_once()
+        except Exception as exc:
+            print(f"Slack Socket Mode connection ended; reconnecting: {exc}", flush=True)
+            if max_attempts is None or attempts < max_attempts:
+                sleep(5.0)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Slack Socket Mode listener")
     parser.parse_args()
@@ -95,7 +112,7 @@ def main() -> None:
         raise SystemExit("DATABASE_URL is required for Socket Mode")
     repository = PostgresRepository(settings.database_url)
     repository.initialize_schema()
-    run_socket_mode(settings.slack_app_token, repository)
+    run_socket_mode_forever(lambda: run_socket_mode(settings.slack_app_token, repository))
 
 
 if __name__ == "__main__":

@@ -66,6 +66,7 @@ services:
 
   slack-socket:
     build: .
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://research:research@postgres:5432/research_stack
