@@ -20,7 +20,9 @@ class PostgresRepository:
     def initialize_schema(self) -> None:
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         with self.connect() as conn:
-            conn.execute(schema)
+            with conn.transaction():
+                conn.execute("SELECT pg_advisory_xact_lock(8675309)")
+                conn.execute(schema)
 
     def find_open_task_by_idempotency_key(self, key: str) -> AgentTask | None:
         with self.connect() as conn:
