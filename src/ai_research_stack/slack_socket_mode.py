@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+from threading import Event
 import time
 from typing import Any
 
-import httpx
-from websockets.sync.client import connect
+from slack_sdk import WebClient
+from slack_sdk.socket_mode import SocketModeClient
+from slack_sdk.socket_mode.request import SocketModeRequest
+from slack_sdk.socket_mode.response import SocketModeResponse
 
 from ai_research_stack.config import load_settings
 from ai_research_stack.postgres import PostgresRepository
@@ -66,24 +69,27 @@ def handle_socket_mode_payload(
     return {"envelope_id": envelope_id}
 
 
-def open_socket_mode_url(app_token: str) -> str:
-    headers = {"Authorization": f"Bearer {app_token}"}
-    with httpx.Client(timeout=30) as client:
-        response = client.post("https://slack.com/api/apps.connections.open", headers=headers)
-        response.raise_for_status()
-        data = response.json()
-    if not data.get("ok") or not data.get("url"):
-        raise RuntimeError(f"Slack Socket Mode open failed: {data}")
-    return str(data["url"])
+def run_socket_mode(app_token: str, repository: Repository, bot_token: str = "") -> None:
+    web_client = WebClient(token=bot_token or None)
+    client = SocketModeClient(app_token=app_token, web_client=web_client)
 
+    def process(client: SocketModeClient, request: SocketModeRequest) -> None:
+        envelope = {
+            "type": request.type,
+            "envelope_id": request.envelope_id,
+            "payload": request.payload,
+        }
+        response = handle_socket_mode_payload(envelope, repository)
+        client.send_socket_mode_response(
+            SocketModeResponse(
+                envelope_id=str(response["envelope_id"]),
+                payload=response.get("payload"),
+            )
+        )
 
-def run_socket_mode(app_token: str, repository: Repository) -> None:
-    socket_url = open_socket_mode_url(app_token)
-    with connect(socket_url) as websocket:
-        for message in websocket:
-            envelope = json.loads(message)
-            response = handle_socket_mode_payload(envelope, repository)
-            websocket.send(json.dumps(response))
+    client.socket_mode_request_listeners.append(process)
+    client.connect()
+    Event().wait()
 
 
 def run_socket_mode_forever(
@@ -112,7 +118,9 @@ def main() -> None:
         raise SystemExit("DATABASE_URL is required for Socket Mode")
     repository = PostgresRepository(settings.database_url)
     repository.initialize_schema()
-    run_socket_mode_forever(lambda: run_socket_mode(settings.slack_app_token, repository))
+    run_socket_mode_forever(
+        lambda: run_socket_mode(settings.slack_app_token, repository, settings.slack_bot_token)
+    )
 
 
 if __name__ == "__main__":
