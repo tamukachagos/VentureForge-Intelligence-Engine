@@ -12,6 +12,7 @@ class Settings:
     redis_url: str = "redis://redis:6379/0"
     slack_signing_secret: str = ""
     slack_bot_token: str = ""
+    slack_app_token: str = ""
     slack_channel_id: str = ""
     openrouter_api_key: str = ""
     anthropic_api_key: str = ""
@@ -40,6 +41,7 @@ def load_settings() -> Settings:
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
         slack_signing_secret=os.getenv("SLACK_SIGNING_SECRET", ""),
         slack_bot_token=os.getenv("SLACK_BOT_TOKEN", ""),
+        slack_app_token=os.getenv("SLACK_APP_TOKEN", ""),
         slack_channel_id=os.getenv("SLACK_CHANNEL_ID", ""),
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),

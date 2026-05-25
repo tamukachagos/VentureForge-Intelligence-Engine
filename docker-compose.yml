@@ -64,6 +64,20 @@ services:
       sh -c "python -m ai_research_stack.cli init-db &&
              python -m ai_research_stack.scheduler --interval-seconds 300"
 
+  slack-socket:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://research:research@postgres:5432/research_stack
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "python -m ai_research_stack.cli init-db &&
+             python -m ai_research_stack.slack_socket_mode"
+
 volumes:
   postgres-data:
-
